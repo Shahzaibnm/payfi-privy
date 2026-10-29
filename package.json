@@ -1,0 +1,30 @@
+{
+  "name": "credit-line",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "tsx --test src/*.test.ts",
+    "start": "tsx --env-file=.env src/server.ts",
+    "admin": "tsx --env-file=.env src/admin.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@privy-io/node": "^0.37.0",
+    "pg": "^8.23.1",
+    "viem": "^2.57.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "5.6"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  }
+}

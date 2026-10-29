@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSP Credit Lines</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#6a737d; --line:#e3e6ea; --accent:#2f6fde;
+          --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --chip:#eef1f5; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1215; --card:#171b20; --fg:#e6e8eb; --muted:#9aa4ae;
+          --line:#2a3038; --accent:#6ea0ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --chip:#232a32; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { display:flex; align-items:center; gap:12px; padding:16px 24px; border-bottom:1px solid var(--line); background:var(--card); }
+  header h1 { font-size:18px; margin:0; }
+  .net { font-size:12px; padding:2px 8px; border-radius:99px; background:var(--chip); color:var(--muted); }
+  main { max-width:1200px; margin:0 auto; padding:24px; display:grid; gap:20px; grid-template-columns: 1fr 1fr; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; min-width:0; }
+  section.wide { grid-column: 1 / -1; }
+  h2 { font-size:15px; margin:0 0 14px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; }
+  textarea { min-height:70px; font-family: ui-monospace, monospace; font-size:12px; }
+  button { margin-top:14px; padding:9px 16px; border:0; border-radius:6px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .msg { margin-top:10px; font-size:13px; white-space:pre-wrap; word-break:break-word; }
+  .msg.ok { color:var(--ok); } .msg.err { color:var(--bad); }
+  .hint { font-size:12px; color:var(--muted); margin-top:6px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; white-space:nowrap; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  td.num { text-align:right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: ui-monospace, monospace; font-size:12px; }
+  a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; background:var(--chip); }
+  .badge.disbursed { color:var(--ok); } .badge.pending { color:var(--warn); }
+  .badge.rejected, .badge.failed { color:var(--bad); }
+  .lowbal { color:var(--warn); font-size:11px; display:block; }
+  .copy { cursor:pointer; border-bottom:1px dotted var(--muted); }
+  .empty { color:var(--muted); padding:14px 0; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; padding:16px; } }
+</style>
+</head>
+<body>
+<header><h1>PSP Credit Lines</h1><span class="net" id="net">…</span></header>
+<main>
+  <section>
+    <h2>Onboard a PSP</h2>
+    <form id="onboard">
+      <label for="o-id">PSP ID</label>
+      <input id="o-id" name="pspId" placeholder="psp2" required pattern="[A-Za-z0-9_\-]{1,40}">
+      <label for="o-limit">Credit limit</label>
+      <input id="o-limit" name="limit" placeholder="250" required inputmode="decimal">
+      <label for="o-wl">Whitelisted receiving addresses (one per line)</label>
+      <textarea id="o-wl" name="whitelist" placeholder="0x…" required></textarea>
+      <button type="submit">Create wallet &amp; policy</button>
+      <div class="msg" id="o-msg" role="status"></div>
+    </form>
+  </section>
+
+  <section>
+    <h2>New drawdown</h2>
+    <form id="drawdown">
+      <label for="d-psp">PSP</label>
+      <select id="d-psp" name="pspId" required></select>
+      <label for="d-to">Send to (whitelisted address)</label>
+      <select id="d-to" name="toAddress" required></select>
+      <label for="d-amt">Amount</label>
+      <input id="d-amt" name="amount" placeholder="5" required inputmode="decimal">
+      <div class="hint" id="d-hint"></div>
+      <button type="submit">Request drawdown</button>
+      <div class="msg" id="d-msg" role="status"></div>
+    </form>
+  </section>
+
+  <section class="wide">
+    <h2>PSPs</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>PSP</th><th>Wallet (repay here)</th><th class="num">Limit</th><th class="num">Used</th>
+        <th class="num">Available</th><th class="num">Wallet balance</th><th>Whitelisted</th></tr></thead>
+      <tbody id="psps"></tbody>
+    </table></div>
+  </section>
+
+  <section class="wide">
+    <h2>Drawdowns</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Created</th><th>PSP</th><th class="num">Amount</th><th>To</th><th>Status</th><th>Transaction</th></tr></thead>
+      <tbody id="drawdowns"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const short = (a) => a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '';
+let state = { explorer: '', psps: [] };
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+
+function addrLink(a) {
+  return `<a class="mono" href="${state.explorer}/address/${esc(a)}" target="_blank" rel="noopener">${esc(short(a))}</a>
+    <span class="copy mono" title="Copy full address" data-copy="${esc(a)}">copy</span>`;
+}
+
+function renderPsps() {
+  $('psps').innerHTML = state.psps.length ? state.psps.map((p) => {
+    const low = p.balance !== null && Number(p.balance) < Number(p.available);
+    return `<tr>
+      <td><strong>${esc(p.id)}</strong></td>
+      <td>${addrLink(p.walletAddress)}</td>
+      <td class="num">${esc(p.limit)}</td>
+      <td class="num">${esc(p.used)}</td>
+      <td class="num">${esc(p.available)}</td>
+      <td class="num">${p.balance === null ? '—' : esc(p.balance)}${low ? '<span class="lowbal">below available — fund wallet</span>' : ''}</td>
+      <td>${p.whitelist.map(addrLink).join('<br>')}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">No PSPs yet. Onboard one above.</td></tr>';
+
+  const sel = $('d-psp'), prev = sel.value;
+  sel.innerHTML = state.psps.map((p) => `<option value="${esc(p.id)}">${esc(p.id)}</option>`).join('');
+  if (state.psps.some((p) => p.id === prev)) sel.value = prev;
+  renderTo();
+}
+
+function renderTo() {
+  const p = state.psps.find((x) => x.id === $('d-psp').value);
+  const sel = $('d-to'), prev = sel.value;
+  sel.innerHTML = p ? p.whitelist.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('') : '';
+  if (p && p.whitelist.includes(prev)) sel.value = prev;
+  $('d-hint').textContent = p ? `Available: ${p.available} · wallet balance: ${p.balance ?? 'unknown'}` : '';
+}
+
+async function refresh() {
+  try {
+    const [{ explorer, psps }, drawdowns] = await Promise.all([api('/api/psps'), api('/api/drawdowns')]);
+    state = { explorer, psps };
+    $('net').textContent = explorer.includes('sepolia') ? 'Sepolia testnet' : 'Ethereum mainnet';
+    renderPsps();
+    $('drawdowns').innerHTML = drawdowns.length ? drawdowns.map((d) => `<tr>
+      <td>${esc(new Date(d.createdAt).toLocaleString())}</td>
+      <td>${esc(d.pspId)}</td>
+      <td class="num">${esc(d.amount)}</td>
+      <td>${addrLink(d.toAddress)}</td>
+      <td><span class="badge ${esc(d.status)}">${esc(d.status)}</span></td>
+      <td>${d.txHash && d.status === 'disbursed' ? `<a class="mono" href="${explorer}/tx/${esc(d.txHash)}" target="_blank" rel="noopener">${esc(short(d.txHash))}</a>` : '—'}</td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty">No drawdowns yet.</td></tr>';
+  } catch (e) {
+    $('net').textContent = `server error: ${e.message}`;
+  }
+}
+
+function submitWith(form, msgEl, handler) {
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const btn = form.querySelector('button');
+    btn.disabled = true; msgEl.className = 'msg'; msgEl.textContent = 'Working…';
+    try { msgEl.textContent = await handler(Object.fromEntries(new FormData(form))); msgEl.className = 'msg ok'; }
+    catch (e) { msgEl.textContent = e.message; msgEl.className = 'msg err'; }
+    finally { btn.disabled = false; refresh(); }
+  });
+}
+
+submitWith($('onboard'), $('o-msg'), async (f) => {
+  const r = await api('/api/psps', { pspId: f.pspId.trim(), limit: f.limit.trim(), whitelist: f.whitelist });
+  $('onboard').reset();
+  return `Created ${r.id}. Fund its wallet with ${r.limit} tokens:\n${r.walletAddress}`;
+});
+
+submitWith($('drawdown'), $('d-msg'), async (f) => {
+  const r = await api('/api/drawdowns', { pspId: f.pspId, toAddress: f.toAddress, amount: f.amount.trim() });
+  $('d-amt').value = '';
+  return `Drawdown submitted (${r.status}). Status updates below in ~15–30s.`;
+});
+
+$('d-psp').addEventListener('change', renderTo);
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-copy]');
+  if (a) navigator.clipboard?.writeText(a.dataset.copy).then(() => { a.textContent = 'copied'; setTimeout(() => (a.textContent = 'copy'), 1200); });
+});
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
